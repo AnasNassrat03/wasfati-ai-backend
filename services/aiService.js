@@ -52,5 +52,19 @@ Return ONLY valid JSON in this exact structure:
     input: prompt,
   });
 
-  return JSON.parse(response.output_text);
+  try {
+    return JSON.parse(response.output_text);
+  } catch (error) {
+    console.error("AI JSON parse error:", error);
+    console.error("AI raw response:", response.output_text);
+
+    return {
+      positives: [],
+      improvement: {
+        title: "تعذر تحليل النتيجة",
+        message: "لم نتمكن من تجهيز الملاحظات حالياً، يرجى المحاولة مرة أخرى.",
+      },
+      important_note: "هذا الفحص للوعي والمتابعة فقط، وليس تشخيصاً طبياً.",
+    };
+  }
 }
