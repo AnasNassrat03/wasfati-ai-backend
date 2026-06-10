@@ -24,6 +24,7 @@ router.post("/webhook", async (req, res) => {
       customer: parsedReport.customer,
       scan: parsedReport.scan,
       metrics: parsedReport.metrics,
+      evaluation: parsedReport.evaluation,
       feedback: aiFeedback,
     });
   } catch (error) {
