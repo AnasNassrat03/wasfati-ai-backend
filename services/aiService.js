@@ -1,10 +1,27 @@
 import "dotenv/config";
 import OpenAI from "openai";
 
-
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+function classifyOpenAIError(error) {
+  if (!(error instanceof OpenAI.APIError)) return "unexpected_error";
+  if (error instanceof OpenAI.AuthenticationError) return "invalid_api_key";
+  if (error instanceof OpenAI.PermissionDeniedError) return "permission_denied";
+  if (error instanceof OpenAI.NotFoundError) return "model_not_found";
+  if (error instanceof OpenAI.APIConnectionError) return "connection_error";
+  if (error instanceof OpenAI.APITimeoutError) return "timeout";
+  if (error instanceof OpenAI.RateLimitError) {
+    const code = error.error?.code ?? error.code;
+    if (code === "insufficient_quota" || code === "billing_hard_limit_reached") {
+      return "no_credits";
+    }
+    return "rate_limited";
+  }
+  if (error instanceof OpenAI.InternalServerError) return "openai_server_error";
+  return "api_error";
+}
 
 export async function generateCustomerFeedback(payload) {
   const prompt = `
@@ -73,34 +90,35 @@ Required JSON schema:
 }
 `;
 
-  const response = await client.responses.create({
-    model: "gpt-5.4 mini",
-    input: prompt,
-  });
-
+  let response;
   try {
-    return JSON.parse(response.output_text);
+    response = await client.responses.create({
+      model: "gpt-5.4 mini",
+      input: prompt,
+    });
   } catch (error) {
-    console.error("AI JSON parse error:", error);
-    console.error("AI raw response:", response.output_text);
-
-    return {
-      en: {
-        summary:
-          "We could not generate the body-composition summary at this time.",
-        recommendations:
-          "Please try again later. Use the scan for awareness and progress tracking, not as a medical diagnosis.",
-        strengths: [],
-        weaknesses: [],
-      },
-      ar: {
-        summary:
-          "تعذر تجهيز ملخص تحليل مكونات الجسم في الوقت الحالي.",
-        recommendations:
-          "يرجى المحاولة مرة أخرى لاحقاً. هذا الفحص للوعي والمتابعة فقط، وليس تشخيصاً طبياً.",
-        strengths: [],
-        weaknesses: [],
-      },
-    };
+    const reason = classifyOpenAIError(error);
+    console.error(`[aiService] OpenAI call failed (${reason}):`, error.message ?? error);
+    throw error;
   }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.output_text);
+  } catch (error) {
+    console.error("[aiService] Failed to parse AI JSON response:", response.output_text);
+    throw new Error("AI returned non-JSON response");
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    !parsed.en?.summary ||
+    !parsed.ar?.summary
+  ) {
+    console.error("[aiService] AI returned unexpected shape:", response.output_text);
+    throw new Error("AI response missing required fields");
+  }
+
+  return parsed;
 }
