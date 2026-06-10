@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function generateCustomerFeedback(parsedReport) {
+export async function generateCustomerFeedback(payload) {
   const prompt = `
 You are generating a concise bilingual body-composition report summary for a health screening PDF.
 
@@ -19,14 +19,17 @@ Important missing-data rule:
 - Only comment on metrics that exist in the current exam or previous_exams.
 - Mention a trend only when at least two valid values exist for that metric.
 
-Interpret hash-formatted fields as value#assessment#reference_range.
+The payload fields are:
+- height_cm, weight_kg, age, sex: basic demographics
+- bmi, body_data fields: hash-formatted as value#flag#reference_range (e.g. "22.5#normal#18.5-24.9")
+- spo2: numeric SpO2 percentage
+- temperature_c: body temperature in Celsius
+- blood: object with low (diastolic), high (systolic), rate (pulse) — each hash-formatted
+- body_data: object of body-composition metrics, each hash-formatted
+- user_goals: array of the user's selected goals
+- previous_exams: array of older exams for the same person (same structure), ordered oldest to newest
 
-The input may include:
-- current exam fields at the top level
-- user_goals: the user’s selected goals
-- previous_exams: older exams for the same person, ordered oldest to newest
-
-Use previous_exams to identify supported trends. Compare the current exam against previous exams for available metrics such as weight, BMI, score, body fat, muscle, water, body age, SpO2, blood pressure, and resting heart rate.
+Use previous_exams to identify supported trends. Compare the current exam against previous exams for available metrics such as weight, BMI, body fat, muscle, water, body age, SpO2, blood pressure, and resting heart rate.
 
 If user_goals is present:
 - Prioritize findings relevant to those goals.
@@ -45,11 +48,11 @@ Known goal meanings:
 Tone:
 - Calm, practical, and easy for a non-clinical reader.
 - Avoid alarmist language.
-- Use “consider discussing with a qualified professional” / “يُفضّل مناقشة ذلك مع مختص مؤهل” for concerning patterns.
+- Use "consider discussing with a qualified professional" / "يُفضّل مناقشة ذلك مع مختص مؤهل" for concerning patterns.
 - Arabic should be natural Modern Standard Arabic, not a literal translation.
 
-Customer scan JSON data:
-${JSON.stringify(parsedReport, null, 2)}
+Patient exam JSON data:
+${JSON.stringify(payload, null, 2)}
 
 Return valid JSON only. No markdown, no code fences, no extra text.
 
