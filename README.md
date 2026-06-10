@@ -125,6 +125,33 @@ Hash-formatted fields follow the pattern `value#flag#reference_range`.
 
 On any error the health service skips saving the summary and the PDF renders without a summary section.
 
+## Docker
+
+The service is containerized for consistent rollout across environments.
+
+### Build & run with Docker
+
+```bash
+# Build the image
+docker build -t wasfati-ai-backend .
+
+# Run it, injecting secrets as env vars (never bake them into the image)
+docker run -p 3000:3000 \
+  -e OPENAI_API_KEY=sk-your-key-here \
+  -e PORT=3000 \
+  wasfati-ai-backend
+```
+
+### Run with Docker Compose
+
+Compose reads variables from your local `.env` automatically:
+
+```bash
+docker compose up --build
+```
+
+The container runs as a non-root user, installs production dependencies only, and exposes port `3000`. A health check polls `GET /` so orchestrators can detect readiness. Your `.env`, `node_modules`, and `.git` are excluded from the image via [`.dockerignore`](.dockerignore).
+
 ## Notes
 
 - The AI output is intended for **awareness and progress tracking only — not medical diagnosis**.
