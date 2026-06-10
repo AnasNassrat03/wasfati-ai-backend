@@ -1,25 +1,34 @@
 import "dotenv/config";
-import OpenAI from "openai";
+import OpenAI, {
+  APIError,
+  AuthenticationError,
+  PermissionDeniedError,
+  NotFoundError,
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  RateLimitError,
+  InternalServerError,
+} from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 function classifyOpenAIError(error) {
-  if (!(error instanceof OpenAI.APIError)) return "unexpected_error";
-  if (error instanceof OpenAI.AuthenticationError) return "invalid_api_key";
-  if (error instanceof OpenAI.PermissionDeniedError) return "permission_denied";
-  if (error instanceof OpenAI.NotFoundError) return "model_not_found";
-  if (error instanceof OpenAI.APIConnectionError) return "connection_error";
-  if (error instanceof OpenAI.APITimeoutError) return "timeout";
-  if (error instanceof OpenAI.RateLimitError) {
+  if (!(error instanceof APIError)) return "unexpected_error";
+  if (error instanceof AuthenticationError) return "invalid_api_key";
+  if (error instanceof PermissionDeniedError) return "permission_denied";
+  if (error instanceof NotFoundError) return "model_not_found";
+  if (error instanceof APIConnectionError) return "connection_error";
+  if (error instanceof APITimeoutError) return "timeout";
+  if (error instanceof RateLimitError) {
     const code = error.error?.code ?? error.code;
     if (code === "insufficient_quota" || code === "billing_hard_limit_reached") {
       return "no_credits";
     }
     return "rate_limited";
   }
-  if (error instanceof OpenAI.InternalServerError) return "openai_server_error";
+  if (error instanceof InternalServerError) return "openai_server_error";
   return "api_error";
 }
 
@@ -93,7 +102,7 @@ Required JSON schema:
   let response;
   try {
     response = await client.responses.create({
-      model: "gpt-5.4 mini",
+      model: "gpt-5.4-mini",
       input: prompt,
     });
   } catch (error) {
