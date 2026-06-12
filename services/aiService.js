@@ -1,36 +1,10 @@
 import "dotenv/config";
-import OpenAI, {
-  APIError,
-  AuthenticationError,
-  PermissionDeniedError,
-  NotFoundError,
-  APIConnectionError,
-  APIConnectionTimeoutError,
-  RateLimitError,
-  InternalServerError,
-} from "openai";
+import OpenAI from "openai";
+import { AiResponseError } from "./aiErrors.js";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-function classifyOpenAIError(error) {
-  if (!(error instanceof APIError)) return "unexpected_error";
-  if (error instanceof AuthenticationError) return "invalid_api_key";
-  if (error instanceof PermissionDeniedError) return "permission_denied";
-  if (error instanceof NotFoundError) return "model_not_found";
-  if (error instanceof APIConnectionError) return "connection_error";
-  if (error instanceof APITimeoutError) return "timeout";
-  if (error instanceof RateLimitError) {
-    const code = error.error?.code ?? error.code;
-    if (code === "insufficient_quota" || code === "billing_hard_limit_reached") {
-      return "no_credits";
-    }
-    return "rate_limited";
-  }
-  if (error instanceof InternalServerError) return "openai_server_error";
-  return "api_error";
-}
 
 export async function generateCustomerFeedback(payload) {
   const prompt = `
@@ -99,24 +73,17 @@ Required JSON schema:
 }
 `;
 
-  let response;
-  try {
-    response = await client.responses.create({
-      model: "gpt-5.4-mini",
-      input: prompt,
-    });
-  } catch (error) {
-    const reason = classifyOpenAIError(error);
-    console.error(`[aiService] OpenAI call failed (${reason}):`, error.message ?? error);
-    throw error;
-  }
+  const response = await client.responses.create({
+    model: "gpt-5.4-mini",
+    input: prompt,
+  });
 
   let parsed;
   try {
     parsed = JSON.parse(response.output_text);
-  } catch (error) {
+  } catch {
     console.error("[aiService] Failed to parse AI JSON response:", response.output_text);
-    throw new Error("AI returned non-JSON response");
+    throw new AiResponseError("AI returned non-JSON response");
   }
 
   if (
@@ -126,7 +93,7 @@ Required JSON schema:
     !parsed.ar?.summary
   ) {
     console.error("[aiService] AI returned unexpected shape:", response.output_text);
-    throw new Error("AI response missing required fields");
+    throw new AiResponseError("AI response missing required fields");
   }
 
   return parsed;
